@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1020">
+<title>CRYPTO RADAR AI</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#141c30;--panel2:#1b2740;--text:#edf3ff;--muted:#9eacc6;--green:#35d49a;--yellow:#f4c45e;--red:#ff7185;--blue:#79aaff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#101a32,var(--bg) 45%);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:900px;margin:auto;padding:22px 15px 40px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:25px;letter-spacing:.5px;margin:0}.sub{color:var(--muted);font-size:13px;margin-top:5px}
+.pill{border:1px solid #30415f;border-radius:30px;padding:7px 11px;color:var(--green);font-size:12px}
+.note{background:#17243b;border:1px solid #2b4163;border-radius:12px;padding:12px 14px;color:#c4d2eb;font-size:13px;line-height:1.5;margin:18px 0}
+.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:16px 0}
+button,select{background:var(--panel2);border:1px solid #354967;color:var(--text);padding:10px 13px;border-radius:10px;font:inherit}
+button{cursor:pointer}button.primary{background:#245d50;border-color:#328a72}button:disabled{opacity:.55}
+.status{color:var(--muted);font-size:12px;margin-left:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px}
+.card{background:linear-gradient(145deg,var(--panel),#111a2c);border:1px solid #263650;border-radius:15px;padding:15px;min-width:0}
+.coinhead{display:flex;justify-content:space-between;align-items:center}.coin{font-weight:700;font-size:17px}.symbol{color:var(--muted);font-size:12px}
+.price{font-size:24px;font-weight:750;margin:14px 0 3px}.change{font-size:13px}.positive{color:var(--green)}.negative{color:var(--red)}
+.signal{display:inline-block;border-radius:30px;padding:6px 10px;font-size:12px;font-weight:700;margin:12px 0 8px;background:#29354a;color:#cbd6e9}
+.signal.good{background:#123c33;color:#66e0b2}.signal.watch{background:#44391d;color:#f5d17a}.signal.bad{background:#462432;color:#ff9aaa}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px}
+.metric{background:#0e1728;border-radius:9px;padding:9px}.metric small{display:block;color:var(--muted);font-size:11px}.metric b{display:block;margin-top:3px;font-size:14px}
+.reason{color:#bac8df;font-size:12px;line-height:1.5;margin-top:10px;min-height:36px}
+footer{color:var(--muted);font-size:12px;line-height:1.6;margin-top:20px}
+.loading{color:var(--muted);padding:20px;text-align:center}.error{color:var(--red);font-size:12px;margin-top:8px}
+
+.newshead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:26px 0 12px}
+.newsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.newscoin{background:#141c30;border:1px solid #263650;border-radius:13px;padding:13px}
+.scoreline{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.score{font-size:23px;font-weight:800}.newsitems{display:grid;gap:9px;margin-top:14px}
+.newsitem{background:#0e1728;border:1px solid #263650;border-radius:10px;padding:11px}
+.newsitem a{color:#dce8ff;text-decoration:none;font-weight:650;font-size:13px;line-height:1.4}
+.newsitem small{display:block;color:#9eacc6;margin-top:6px;font-size:11px}
+</style>
+</head>
+<body><main>
+<div class="top"><div><h1>◈ CRYPTO RADAR <span style="color:var(--green)">AI</span></h1><div class="sub">Radar conservador · BTC · ETH · BNB · SOL</div></div><span class="pill">MODO DEMO · SOLO ANÁLISIS</span></div>
+<div class="note"><b>Cómo funciona:</b> consulta datos públicos de Binance y calcula indicadores técnicos en tu navegador. Busca tendencias sólidas y evita señales apresuradas. Esta primera versión todavía no analiza noticias ni fundamentos; eso será la siguiente etapa.</div>
+<div class="controls"><label for="tf">Temporalidad</label><select id="tf"><option value="1d">Diaria (1D)</option><option value="1w">Semanal (1W)</option></select><button class="primary" id="refresh">Actualizar datos</button><span class="status" id="status">Preparando…</span></div>
+<div id="cards" class="grid"><div class="loading">Cargando mercado…</div></div>
+
+<div class="newshead"><div><h2 style="font-size:20px;margin:0">Radar de noticias</h2><div class="sub">Sentimiento de titulares recientes · no es análisis fundamental completo</div></div><button id="newsRefresh">Actualizar noticias</button></div>
+<div id="newsStatus" class="note">Consultando titulares recientes…</div>
+<div id="newsScores" class="newsgrid"></div>
+<div id="newsList" class="newsitems"></div>
+<footer>Fuente de precios y velas: API pública de Binance. Los indicadores son cálculos orientativos, no predicciones. No ejecuta operaciones ni garantiza resultados. Comprueba comisiones, liquidez y riesgo antes de operar.</footer>
+</main>
+<script>
+const coins=[{s:'BTCUSDT',n:'Bitcoin',sym:'BTC'},{s:'ETHUSDT',n:'Ethereum',sym:'ETH'},{s:'BNBUSDT',n:'BNB',sym:'BNB'},{s:'SOLUSDT',n:'Solana',sym:'SOL'}];
+const $=id=>document.getElementById(id);
+const fmt=n=>new Intl.NumberFormat('en-US',{maximumFractionDigits:n<1?5:2}).format(n);
+function ema(values,p){let k=2/(p+1),out=[];let prev=values[0];out.push(prev);for(let i=1;i<values.length;i++){prev=values[i]*k+prev*(1-k);out.push(prev)}return out}
+function rsi(values,p=14){if(values.length<=p)return null;let gains=0,losses=0;for(let i=values.length-p;i<values.length;i++){let d=values[i]-values[i-1];if(d>0)gains+=d;else losses-=d}if(losses===0)return 100;let rs=(gains/p)/(losses/p);return 100-100/(1+rs)}
+function macd(values){let a=ema(values,12),b=ema(values,26),line=values.map((_,i)=>a[i]-b[i]),sig=ema(line,9);return {line:line.at(-1),sig:sig.at(-1)}}
+async function getCoin(c,tf){
+ const [ticker,klines]=await Promise.all([
+ fetch('https://api.binance.com/api/v3/ticker/24hr?symbol='+c.s).then(r=>{if(!r.ok)throw Error('Precio no disponible');return r.json()}),
+ fetch('https://api.binance.com/api/v3/klines?symbol='+c.s+'&interval='+tf+'&limit=220').then(r=>{if(!r.ok)throw Error('Histórico no disponible');return r.json()})
+ ]);
+ const closes=klines.map(k=>+k[4]),vols=klines.map(k=>+k[5]),last=+ticker.lastPrice,e20=ema(closes,20).at(-1),e50=ema(closes,50).at(-1),e200=ema(closes,200).at(-1),rv=rsi(closes),m=macd(closes),avgVol=vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20,volRatio=vols.at(-1)/avgVol;
+ const trend=last>e200,mid=last>e50,macdUp=m.line>m.sig,healthyRsi=rv!==null&&rv>=40&&rv<=65,volume=volRatio>=1;
+ const score=[trend,mid,macdUp,healthyRsi,volume].filter(Boolean).length;
+ let label='ESPERAR',cls='watch',why=[];
+ if(score>=4&&trend&&macdUp&&healthyRsi){label='VIGILAR ENTRADA';cls='good'}
+ else if(!trend&&rv<35){label='ESPERAR CONFIRMACIÓN';cls='bad'}
+ if(trend)why.push('precio sobre EMA200');else why.push('precio bajo EMA200');
+ if(macdUp)why.push('MACD positivo');if(healthyRsi)why.push('RSI en zona moderada');if(volume)why.push('volumen sobre promedio');
+ return {c,ticker,last,change:+ticker.priceChangePercent,rv,e20,e50,e200,m,volRatio,score,label,cls,why};
+}
+function card(d){
+ return `<section class="card"><div class="coinhead"><div><div class="coin">${d.c.n}</div><div class="symbol">${d.c.sym}/USDT · ${$('tf').value.toUpperCase()}</div></div><span style="color:var(--blue)">●</span></div>
+ <div class="price">$${fmt(d.last)}</div><div class="change ${d.change>=0?'positive':'negative'}">${d.change>=0?'+':''}${d.change.toFixed(2)}% en 24 h</div>
+ <div class="signal ${d.cls}">${d.label} · ${d.score}/5 filtros</div>
+ <div class="metrics"><div class="metric"><small>RSI (14)</small><b>${d.rv===null?'—':d.rv.toFixed(1)}</b></div><div class="metric"><small>MACD</small><b>${d.m.line>d.m.sig?'Alcista':'No alcista'}</b></div><div class="metric"><small>EMA 50</small><b>$${fmt(d.e50)}</b></div><div class="metric"><small>EMA 200</small><b>$${fmt(d.e200)}</b></div></div>
+ <div class="reason">${d.why.join(' · ')}</div></section>`;
+}
+async function load(){const btn=$('refresh'),cards=$('cards'),tf=$('tf').value;btn.disabled=true;$('status').textContent='Consultando Binance…';cards.innerHTML='<div class="loading">Analizando cuatro criptomonedas…</div>';
+ const results=await Promise.allSettled(coins.map(c=>getCoin(c,tf)));let html='',ok=0;
+ results.forEach((r,i)=>{if(r.status==='fulfilled'){html+=card(r.value);ok++}else{html+=`<section class="card"><b>${coins[i].n}</b><div class="error">No se pudo cargar: ${r.reason.message}. Intenta de nuevo.</div></section>`}});
+ cards.innerHTML=html;$('status').textContent=ok+'/4 activos · '+new Date().toLocaleTimeString('es-CO');btn.disabled=false;
+}
+$('refresh').addEventListener('click',load);$('tf').addEventListener('change',load);load();
+
+const newsCoins=[
+ {sym:'BTC',terms:['bitcoin','btc']},
+ {sym:'ETH',terms:['ethereum','ether','eth']},
+ {sym:'BNB',terms:['bnb','binance coin','binance']},
+ {sym:'SOL',terms:['solana','sol']}
+];
+const positiveWords=['surge','rally','approval','approved','adoption','partnership','upgrade','launch','growth','record high','inflow','bullish','gains','sube','adopción','aprobación','alianza','actualización','crecimiento'];
+const negativeWords=['hack','hacked','exploit','lawsuit','ban','banned','crash','outflow','selloff','bearish','fraud','investigation','breach','losses','decline','falls','drop','caída','demanda','prohibición','ataque','pérdidas'];
+function plainText(value){
+ return new DOMParser().parseFromString(value||'','text/html').body.textContent||'';
+}
+function classifyNews(a){
+ const t=((a.title||'')+' '+(a.summary||'')).toLowerCase();
+ const pos=positiveWords.filter(w=>t.includes(w)).length;
+ const neg=negativeWords.filter(w=>t.includes(w)).length;
+ return pos>neg?'Positiva':neg>pos?'Negativa':'Neutral';
+}
+function matchesCoin(a,c){
+ const t=((a.title||'')+' '+(a.summary||'')).toLowerCase();
+ return c.terms.some(w=>{
+  if(w==='btc'||w==='eth'||w==='sol')return new RegExp('(^|[^a-z0-9])'+w+'([^a-z0-9]|$)','i').test(t);
+  return t.includes(w);
+ });
+}
+function newsScore(items,c){
+ const relevant=items.filter(a=>matchesCoin(a,c)).slice(0,20);
+ if(!relevant.length)return {score:50,label:'Sin titulares suficientes',count:0};
+ let pos=0,neg=0;
+ relevant.forEach(a=>{const v=classifyNews(a);if(v==='Positiva')pos++;if(v==='Negativa')neg++});
+ const score=Math.max(0,Math.min(100,Math.round(50+(pos-neg)*8)));
+ return {score,label:pos>neg?'Sesgo positivo':neg>pos?'Sesgo negativo':'Sentimiento mixto',count:relevant.length};
+}
+function renderNews(items){
+ const scores=newsCoins.map(c=>({c,...newsScore(items,c)}));
+ const scoreNodes=scores.map(x=>{
+  const section=document.createElement('section');section.className='newscoin';
+  const line=document.createElement('div');line.className='scoreline';
+  const name=document.createElement('b');name.textContent=x.c.sym;
+  const score=document.createElement('span');score.className='score';score.textContent=x.score+'/100';
+  line.append(name,score);
+  const signal=document.createElement('div');signal.className='signal '+(x.score>=58?'good':x.score<=42?'bad':'watch');signal.textContent=x.label;
+  const reason=document.createElement('div');reason.className='reason';
+  reason.textContent=x.count+' titulares relacionados. Es un filtro simple de palabras, no una valoración del proyecto.';
+  section.append(line,signal,reason);return section;
+ });
+ $('newsScores').replaceChildren(...scoreNodes);
+ const nodes=items.slice(0,10).map(a=>{
+  const article=document.createElement('article');article.className='newsitem';
+  const link=document.createElement('a');
+  if(/^https?:\/\//i.test(a.link||'')){link.href=a.link;link.target='_blank';link.rel='noopener noreferrer'}
+  link.textContent=a.title||'Titular sin título';
+  const meta=document.createElement('small');
+  const date=a.date?new Date(a.date):null;
+  meta.textContent=(a.source||'CoinDesk RSS')+' · '+classifyNews(a)+' · '+(date&&!Number.isNaN(date.valueOf())?date.toLocaleString('es-CO'):'Fecha no disponible');
+  article.append(link,meta);return article;
+ });
+ $('newsList').replaceChildren(...nodes);
+}
+async function fetchRss(feedUrl){
+ const response=await fetch('https://proxy.cors.dev/'+feedUrl,{credentials:'omit'});
+ if(!response.ok)throw new Error(response.headers.get('X-Cors-Error')||('HTTP '+response.status));
+ const xml=new DOMParser().parseFromString(await response.text(),'application/xml');
+ if(xml.querySelector('parsererror'))throw new Error('El proveedor devolvió un RSS no válido');
+ return [...xml.querySelectorAll('item, entry')].map(entry=>{
+  const get=selector=>entry.querySelector(selector)?.textContent.trim()||'';
+  const linkNode=entry.querySelector('link[rel="alternate"]')||entry.querySelector('link');
+  return {title:get('title'),link:linkNode?.getAttribute('href')||linkNode?.textContent.trim()||'',date:get('pubDate')||get('published')||get('updated'),summary:get('description')||get('summary')||get('content'),source:'CoinDesk'};
+ });
+}
+async function loadNews(){
+ $('newsRefresh').disabled=true;$('newsStatus').textContent='Buscando titulares de CoinDesk…';
+ try{
+  const items=await fetchRss('https://www.coindesk.com/arc/outboundfeeds/rss/');
+  if(!items.length)throw new Error('El feed no contiene titulares');
+  renderNews(items);
+  $('newsStatus').textContent='Noticias cargadas: '+items.length+' titulares de CoinDesk. La puntuación automática es orientativa y puede clasificar mal ironías o contexto.';
+ }catch(e){
+  $('newsStatus').textContent='No se pudieron cargar las noticias: '+e.message+'. El análisis técnico sigue funcionando. Intenta nuevamente más tarde.';
+  $('newsScores').replaceChildren();$('newsList').replaceChildren();
+ }
+ $('newsRefresh').disabled=false;
+}
+$('newsRefresh').addEventListener('click',loadNews);
+loadNews();
+
+</script></body></html>
