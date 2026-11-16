@@ -27,6 +27,15 @@ button{cursor:pointer}button.primary{background:#245d50;border-color:#328a72}but
 .reason{color:#bac8df;font-size:12px;line-height:1.5;margin-top:10px;min-height:36px}
 footer{color:var(--muted);font-size:12px;line-height:1.6;margin-top:20px}
 .loading{color:var(--muted);padding:20px;text-align:center}.error{color:var(--red);font-size:12px;margin-top:8px}
+
+.newshead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:26px 0 12px}
+.newsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.newscoin{background:#141c30;border:1px solid #263650;border-radius:13px;padding:13px}
+.scoreline{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.score{font-size:23px;font-weight:800}.newsitems{display:grid;gap:9px;margin-top:14px}
+.newsitem{background:#0e1728;border:1px solid #263650;border-radius:10px;padding:11px}
+.newsitem a{color:#dce8ff;text-decoration:none;font-weight:650;font-size:13px;line-height:1.4}
+.newsitem small{display:block;color:#9eacc6;margin-top:6px;font-size:11px}
 </style>
 </head>
 <body><main>
@@ -34,6 +43,11 @@ footer{color:var(--muted);font-size:12px;line-height:1.6;margin-top:20px}
 <div class="note"><b>Cómo funciona:</b> consulta datos públicos de Binance y calcula indicadores técnicos en tu navegador. Busca tendencias sólidas y evita señales apresuradas. Esta primera versión todavía no analiza noticias ni fundamentos; eso será la siguiente etapa.</div>
 <div class="controls"><label for="tf">Temporalidad</label><select id="tf"><option value="1d">Diaria (1D)</option><option value="1w">Semanal (1W)</option></select><button class="primary" id="refresh">Actualizar datos</button><span class="status" id="status">Preparando…</span></div>
 <div id="cards" class="grid"><div class="loading">Cargando mercado…</div></div>
+
+<div class="newshead"><div><h2 style="font-size:20px;margin:0">Radar de noticias</h2><div class="sub">Sentimiento de titulares recientes · no es análisis fundamental completo</div></div><button id="newsRefresh">Actualizar noticias</button></div>
+<div id="newsStatus" class="note">Consultando titulares recientes…</div>
+<div id="newsScores" class="newsgrid"></div>
+<div id="newsList" class="newsitems"></div>
 <footer>Fuente de precios y velas: API pública de Binance. Los indicadores son cálculos orientativos, no predicciones. No ejecuta operaciones ni garantiza resultados. Comprueba comisiones, liquidez y riesgo antes de operar.</footer>
 </main>
 <script>
@@ -71,4 +85,47 @@ async function load(){const btn=$('refresh'),cards=$('cards'),tf=$('tf').value;b
  cards.innerHTML=html;$('status').textContent=ok+'/4 activos · '+new Date().toLocaleTimeString('es-CO');btn.disabled=false;
 }
 $('refresh').addEventListener('click',load);$('tf').addEventListener('change',load);load();
+
+const newsCoins=[{sym:'BTC',terms:['bitcoin','btc']},{sym:'ETH',terms:['ethereum','ether','eth']},{sym:'BNB',terms:['bnb','binance coin','binance']},{sym:'SOL',terms:['solana',' sol ','sol'] }];
+const positiveWords=['surge','rally','approval','approved','adoption','partnership','upgrade','launch','growth','record high','inflow','bullish','gains','突破','sube','adopción','aprob'];
+const negativeWords=['hack','hacked','exploit','lawsuit','ban','banned','crash',' سقوط','outflow','selloff','bearish','fraud','investigation','breach','losses','decline','falls','drop','caída','demanda','prohib'];
+function classifyNews(a){
+ const t=((a.title||'')+' '+(a.body||'')).toLowerCase();
+ let pos=positiveWords.filter(w=>t.includes(w)).length,neg=negativeWords.filter(w=>t.includes(w)).length;
+ return pos>neg?'Positiva':neg>pos?'Negativa':'Neutral';
+}
+function matchesCoin(a,c){const t=((a.title||'')+' '+(a.body||'')+' '+(a.categories||'')).toLowerCase();return c.terms.some(w=>t.includes(w))}
+function newsScore(items,c){
+ const relevant=items.filter(a=>matchesCoin(a,c)).slice(0,20);
+ if(!relevant.length)return {score:50,label:'Sin titulares suficientes',count:0};
+ let pos=0,neg=0;
+ relevant.forEach(a=>{const v=classifyNews(a);if(v==='Positiva')pos++;if(v==='Negativa')neg++});
+ const raw=50+(pos-neg)*8;
+ const score=Math.max(0,Math.min(100,raw));
+ return {score,label:pos>neg?'Sesgo positivo':neg>pos?'Sesgo negativo':'Sentimiento mixto',count:relevant.length};
+}
+function renderNews(items){
+ const scores=newsCoins.map(c=>({c,...newsScore(items,c)}));
+ $('newsScores').innerHTML=scores.map(x=>`<section class="newscoin"><div class="scoreline"><b>${x.c.sym}</b><span class="score">${x.score}/100</span></div><div class="signal ${x.score>=58?'good':x.score<=42?'bad':'watch'}">${x.label}</div><div class="reason">${x.count} titulares relacionados analizados. La puntuación mide palabras en titulares y resúmenes, no valor intrínseco.</div></section>`).join('');
+ const chosen=items.slice(0,10);
+ $('newsList').innerHTML=chosen.map(a=>`<article class="newsitem"><a href="${a.url||'#'}" target="_blank" rel="noopener">${a.title||'Titular sin título'}</a><small>${a.source_info?.name||a.source||'Fuente de noticias'} · ${classifyNews(a)} · ${a.published_on?new Date(a.published_on*1000).toLocaleString('es-CO'):''}</small></article>`).join('');
+}
+async function loadNews(){
+ $('newsRefresh').disabled=true;$('newsStatus').textContent='Buscando noticias recientes…';
+ try{
+  const r=await fetch('https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest');
+  if(!r.ok)throw Error('El proveedor de noticias respondió '+r.status);
+  const j=await r.json();
+  if(!Array.isArray(j.Data)||!j.Data.length)throw Error('No hay titulares disponibles ahora');
+  renderNews(j.Data);
+  $('newsStatus').textContent='Noticias cargadas: '+j.Data.length+' titulares en inglés. Fuente: CryptoCompare. El análisis automático de sentimiento es básico y puede equivocarse.';
+ }catch(e){
+  $('newsStatus').innerHTML='No se pudieron cargar las noticias: '+e.message+'. Los indicadores técnicos siguen funcionando. Puedes volver a intentarlo más tarde.';
+  $('newsScores').innerHTML='';$('newsList').innerHTML='';
+ }
+ $('newsRefresh').disabled=false;
+}
+$('newsRefresh').addEventListener('click',loadNews);
+loadNews();
+
 </script></body></html>
